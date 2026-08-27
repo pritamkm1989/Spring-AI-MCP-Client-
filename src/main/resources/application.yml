@@ -1,0 +1,68 @@
+server:
+  # MCP server commonly runs on 8080, so the agent app uses 8081
+  port: 8081
+
+spring:
+  application:
+    name: spring-ai-agent
+  main:
+    lazy-initialization: true
+
+  # pgvector running in Docker (host port 5422 -> container 5432)
+  datasource:
+    url: jdbc:postgresql://localhost:5422/springai
+    username: postgres
+    password: postgres
+
+  ai:
+    # Local Ollama
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        options:
+          model: qwen2.5:7b
+          temperature: 0.2
+      embedding:
+        options:
+          # Pull once:  ollama pull nomic-embed-text   (768 dimensions)
+          model: nomic-embed-text
+
+    # pgvector vector store
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        dimensions: 768
+
+    # MCP client auto-configuration is disabled on purpose. The two MCP servers
+    # use different authentication (Basic auth vs token), so the clients are
+    # built manually in McpConfig, each with its own WebClient/headers.
+    mcp:
+      client:
+        enabled: false
+
+# MCP servers (wired manually in McpConfig with per-server authentication)
+agent:
+  # Repository root the documentation agent may scan and rewrite (.java files only)
+  doc:
+    root-path: ${AGENT_DOC_ROOT:.}
+  mcp:
+    # Local MCP server over SSE, secured with HTTP Basic auth
+    local:
+      enabled: ${AGENT_MCP_LOCAL_ENABLED:true}
+      url: http://localhost:8090
+      sse-endpoint: /sse
+      username: admin
+      password: admin123
+    # Parallel.ai search MCP over Streamable-HTTP, secured with an API key
+    parallel-search:
+      enabled: ${AGENT_MCP_PARALLEL_ENABLED:true}
+      url: https://search.parallel.ai
+      endpoint: /mcp
+      api-key: ${PARALLEL_API_KEY:pT9U_M6Astfn5RAEfHZg9Ck8snURK1EURFPEdVnO}
+
+logging:
+  level:
+    org.springframework.ai: INFO
+    io.modelcontextprotocol: INFO

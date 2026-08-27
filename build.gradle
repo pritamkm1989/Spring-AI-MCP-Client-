@@ -1,0 +1,58 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.16'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.pkm'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    springAiVersion = '1.1.8'
+}
+
+dependencies {
+    // Lombok (compile-time only: @Slf4j, @RequiredArgsConstructor, etc.)
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Web (REST API)
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // Spring AOP (AspectJ-style @Aspect support: spring-aop + aspectjweaver)
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+
+    // Spring AI - Ollama chat + embeddings
+    implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
+
+    // Spring AI - MCP client over SSE (WebFlux transport)
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-client-webflux'
+
+    // Spring AI - pgvector store (RAG)
+    implementation 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
