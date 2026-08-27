@@ -1,0 +1,40 @@
+%% Sources:
+%% - src/main/java/com/pkm/agent/controller/AgentController.java
+%% - src/main/java/com/pkm/agent/controller/DocumentationController.java
+%% - src/main/java/com/pkm/agent/controller/RagController.java
+%% Notes:
+%% - The repository does not define a JPA/domain model.
+%% - This diagram reflects the request/response records and stored document shape visible in code.
+%% - AskRequest is omitted from active relationships because /api/rag/ask is commented out.
+erDiagram
+    CHAT_REQUEST {
+        string message
+        string conversationId
+    }
+
+    CHAT_RESPONSE {
+        string conversationId
+        string response
+    }
+
+    DOCUMENTATION_RESULT {
+        string summary
+    }
+
+    INGEST_REQUEST {
+        string text
+    }
+
+    STORED_DOCUMENT {
+        string id
+        string text
+    }
+
+    INGEST_RESULT {
+        string status
+        string id
+    }
+
+    CHAT_REQUEST ||--|| CHAT_RESPONSE : yields
+    INGEST_REQUEST ||--|| STORED_DOCUMENT : creates
+    STORED_DOCUMENT ||--|| INGEST_RESULT : returns_id_from

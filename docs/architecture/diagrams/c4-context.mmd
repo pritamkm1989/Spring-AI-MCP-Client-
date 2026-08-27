@@ -1,0 +1,24 @@
+%% Sources:
+%% - src/main/java/com/pkm/agent/controller/AgentController.java
+%% - src/main/java/com/pkm/agent/controller/DocumentationController.java
+%% - src/main/java/com/pkm/agent/controller/RagController.java
+%% - src/main/java/com/pkm/agent/config/AgentConfig.java
+%% - src/main/java/com/pkm/agent/config/McpConfig.java
+%% - src/main/resources/application.yml
+flowchart TB
+    apiUser["API Client / Developer"]
+    docOperator["Documentation Operator"]
+    app["Spring AI Agent Application<br/>Spring Boot REST API with Spring AI tool orchestration"]
+    ollama["Ollama<br/>Chat and embedding models"]
+    localMcp["Local MCP Server<br/>SSE transport"]
+    parallelMcp["Parallel Search MCP Server<br/>Streamable HTTP transport"]
+    pgvector[("PostgreSQL + pgvector")]
+    repo["Repository filesystem<br/>Configured documentation root"]
+
+    apiUser -->|"Calls /api/agent/* and /api/rag/*"| app
+    docOperator -->|"Calls POST /api/agent/document"| app
+    app -->|"Chat completion and embeddings"| ollama
+    app -->|"Tool discovery/invocation<br/>Basic auth from config"| localMcp
+    app -->|"Tool discovery/invocation<br/>API key from config"| parallelMcp
+    app -->|"Vector persistence"| pgvector
+    app -->|"Reads/writes .java files during documentation pass"| repo

@@ -1,0 +1,40 @@
+%% Sources:
+%% - src/main/java/com/pkm/agent/controller/AgentController.java
+%% - src/main/java/com/pkm/agent/config/AgentConfig.java
+%% - src/main/java/com/pkm/agent/config/McpConfig.java
+%% - src/main/java/com/pkm/agent/tools/AgentTools.java
+%% - src/main/java/com/pkm/agent/tools/DocumentationTools.java
+%% - src/main/java/com/pkm/agent/aspect/ChatModelLoggingAspect.java
+sequenceDiagram
+    actor Client
+    participant AgentController
+    participant ChatClient
+    participant ChatMemory
+    participant LocalTools as AgentTools and DocumentationTools
+    participant McpTools as MCP ToolCallbackProvider
+    participant Ollama
+
+    Client->>AgentController: POST /api/agent/chat {message, conversationId?}
+    AgentController->>AgentController: Resolve conversationId<br/>blank -> "default"
+    AgentController->>ChatClient: prompt().user(message)<br/>advisors(conversationId)
+    ChatClient->>ChatMemory: Load/update conversation window
+    Note over ChatClient,Ollama: ChatModelLoggingAspect logs prompt, response, and token usage around model calls
+    ChatClient->>Ollama: Send prompt with system prompt and advisors
+
+    alt Model chooses a local tool
+        Ollama-->>ChatClient: Tool call request
+        ChatClient->>LocalTools: Invoke @Tool method
+        LocalTools-->>ChatClient: Tool result
+        ChatClient->>Ollama: Continue with tool result
+    end
+
+    alt Model chooses a reachable MCP tool
+        Ollama-->>ChatClient: Tool call request
+        ChatClient->>McpTools: Invoke MCP tool callback
+        McpTools-->>ChatClient: Tool result
+        ChatClient->>Ollama: Continue with tool result
+    end
+
+    Ollama-->>ChatClient: Final answer
+    ChatClient-->>AgentController: Response content
+    AgentController-->>Client: {conversationId, response}

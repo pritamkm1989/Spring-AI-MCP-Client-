@@ -1,0 +1,39 @@
+%% Sources:
+%% - src/main/java/com/pkm/agent/controller/DocumentationController.java
+%% - src/main/java/com/pkm/agent/config/AgentConfig.java
+%% - src/main/java/com/pkm/agent/tools/DocumentationTools.java
+sequenceDiagram
+    actor Client
+    participant DocumentationController
+    participant ChatClient
+    participant Ollama
+    participant DocumentationTools
+    participant Repository as Repository filesystem
+
+    Client->>DocumentationController: POST /api/agent/document
+    DocumentationController->>ChatClient: prompt().user(DOC_INSTRUCTION)
+    ChatClient->>Ollama: Ask model to execute documentation workflow
+
+    Ollama-->>ChatClient: Call scanForMissingJavadoc()
+    ChatClient->>DocumentationTools: scanForMissingJavadoc()
+    DocumentationTools->>Repository: Walk .java files under configured root
+    Repository-->>DocumentationTools: Missing Javadoc report
+    DocumentationTools-->>ChatClient: Report
+
+    loop For each reported file
+        Ollama-->>ChatClient: Call readJavaFile(relativePath)
+        ChatClient->>DocumentationTools: readJavaFile(relativePath)
+        DocumentationTools->>Repository: Read file
+        Repository-->>DocumentationTools: File content
+        DocumentationTools-->>ChatClient: File content
+
+        Ollama-->>ChatClient: Call writeJavaFile(relativePath, content)
+        ChatClient->>DocumentationTools: writeJavaFile(relativePath, content)
+        DocumentationTools->>Repository: Overwrite .java file
+        Repository-->>DocumentationTools: Write complete
+        DocumentationTools-->>ChatClient: Write status
+    end
+
+    Ollama-->>ChatClient: Summary of documented files
+    ChatClient-->>DocumentationController: Summary
+    DocumentationController-->>Client: {summary}
