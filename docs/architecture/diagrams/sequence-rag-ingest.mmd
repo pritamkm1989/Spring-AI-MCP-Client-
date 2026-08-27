@@ -1,0 +1,20 @@
+%% Sources:
+%% - src/main/java/com/pkm/agent/controller/RagController.java
+%% - src/main/resources/application.yml
+%% - README.md
+sequenceDiagram
+    actor Client
+    participant RagController
+    participant VectorStore
+    participant OllamaEmbeddings as Ollama embedding model
+    participant PgVector as PostgreSQL + pgvector
+
+    Client->>RagController: POST /api/rag/ingest {text}
+    RagController->>RagController: Create Document(text)
+    RagController->>VectorStore: add([Document])
+    VectorStore->>OllamaEmbeddings: Generate embedding for text
+    OllamaEmbeddings-->>VectorStore: Embedding vector
+    VectorStore->>PgVector: Persist document and vector
+    PgVector-->>VectorStore: Stored
+    VectorStore-->>RagController: Success
+    RagController-->>Client: {status: "ingested", id}

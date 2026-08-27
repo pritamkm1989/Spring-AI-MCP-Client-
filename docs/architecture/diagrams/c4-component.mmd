@@ -1,0 +1,57 @@
+%% Sources:
+%% - src/main/java/com/pkm/agent/config/AgentConfig.java
+%% - src/main/java/com/pkm/agent/config/McpConfig.java
+%% - src/main/java/com/pkm/agent/controller/AgentController.java
+%% - src/main/java/com/pkm/agent/controller/DocumentationController.java
+%% - src/main/java/com/pkm/agent/controller/RagController.java
+%% - src/main/java/com/pkm/agent/tools/AgentTools.java
+%% - src/main/java/com/pkm/agent/tools/DocumentationTools.java
+%% - src/main/java/com/pkm/agent/aspect/ChatModelLoggingAspect.java
+%% - src/main/resources/application.yml
+flowchart LR
+    subgraph app["Spring AI Agent Application"]
+        agentController["AgentController"]
+        documentationController["DocumentationController"]
+        ragController["RagController"]
+        agentConfig["AgentConfig"]
+        mcpConfig["McpConfig"]
+        chatClient["ChatClient bean"]
+        chatMemory["ChatMemory<br/>MessageWindowChatMemory"]
+        mcpProvider["ToolCallbackProvider"]
+        agentTools["AgentTools<br/>getCurrentDateTime()<br/>calculate()<br/>getSystemInfo()"]
+        documentationTools["DocumentationTools<br/>scanForMissingJavadoc()<br/>readJavaFile()<br/>writeJavaFile()"]
+        vectorStore["VectorStore"]
+        loggingAspect["ChatModelLoggingAspect"]
+    end
+
+    ollama["Ollama"]
+    localMcp["Local MCP server"]
+    parallelMcp["Parallel Search MCP server"]
+    pgvector[("PostgreSQL + pgvector")]
+    repo["Repository filesystem"]
+
+    agentConfig --> chatMemory
+    agentConfig --> chatClient
+    agentConfig --> agentTools
+    agentConfig --> documentationTools
+    agentConfig --> mcpProvider
+
+    mcpConfig --> mcpProvider
+    mcpConfig --> localMcp
+    mcpConfig --> parallelMcp
+
+    agentController --> chatClient
+    agentController --> mcpProvider
+    documentationController --> chatClient
+    ragController --> vectorStore
+    ragController --> chatClient
+
+    chatClient --> chatMemory
+    chatClient --> agentTools
+    chatClient --> documentationTools
+    chatClient --> mcpProvider
+    chatClient --> ollama
+    documentationTools --> repo
+    vectorStore --> ollama
+    vectorStore --> pgvector
+    loggingAspect -. intercepts ChatModel.call(..) .-> ollama

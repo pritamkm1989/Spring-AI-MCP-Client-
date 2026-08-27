@@ -1,0 +1,89 @@
+%% Sources:
+%% - src/main/java/com/pkm/agent/AgentApplication.java
+%% - src/main/java/com/pkm/agent/config/AgentConfig.java
+%% - src/main/java/com/pkm/agent/config/McpConfig.java
+%% - src/main/java/com/pkm/agent/controller/AgentController.java
+%% - src/main/java/com/pkm/agent/controller/DocumentationController.java
+%% - src/main/java/com/pkm/agent/controller/RagController.java
+%% - src/main/java/com/pkm/agent/tools/AgentTools.java
+%% - src/main/java/com/pkm/agent/tools/DocumentationTools.java
+%% - src/main/java/com/pkm/agent/aspect/ChatModelLoggingAspect.java
+classDiagram
+    class AgentApplication {
+        +main(String[] args)
+    }
+
+    class AgentConfig {
+        +chatMemory() ChatMemory
+        +agentChatClient(builder, agentTools, documentationTools, mcpToolProvider, chatMemory) ChatClient
+    }
+
+    class McpConfig {
+        +localMcpClient(enabled, url, sseEndpoint, username, password) McpSyncClient
+        +parallelSearchMcpClient(enabled, url, endpoint, apiKey) McpSyncClient
+        +safeInitialize(name, client) McpSyncClient
+        +mcpToolProvider(mcpSyncClients) ToolCallbackProvider
+    }
+
+    class AgentController {
+        +chat(request) Map
+        +tools() List
+    }
+
+    class DocumentationController {
+        +document() Map
+    }
+
+    class RagController {
+        +ingest(request) Map
+    }
+
+    class AgentTools {
+        +getCurrentDateTime() String
+        +calculate(left, operator, right) double
+        +getSystemInfo() String
+    }
+
+    class DocumentationTools {
+        -root Path
+        +scanForMissingJavadoc() String
+        +readJavaFile(relativePath) String
+        +writeJavaFile(relativePath, content) String
+    }
+
+    class ChatModelLoggingAspect {
+        +logChatModel(joinPoint) Object
+    }
+
+    class ChatRequest {
+        +message String
+        +conversationId String
+    }
+
+    class IngestRequest {
+        +text String
+    }
+
+    class ChatClient
+    class ChatMemory
+    class ToolCallbackProvider
+    class VectorStore
+    class McpSyncClient
+
+    AgentApplication --> AgentConfig
+    AgentApplication --> McpConfig
+    AgentController --> ChatClient
+    AgentController --> ToolCallbackProvider
+    AgentController --> ChatRequest
+    DocumentationController --> ChatClient
+    RagController --> VectorStore
+    RagController --> ChatClient
+    RagController --> IngestRequest
+    AgentConfig --> ChatMemory
+    AgentConfig --> ChatClient
+    AgentConfig --> AgentTools
+    AgentConfig --> DocumentationTools
+    AgentConfig --> ToolCallbackProvider
+    McpConfig --> McpSyncClient
+    McpConfig --> ToolCallbackProvider
+    ChatModelLoggingAspect ..> ChatClient : logs model calls around usage

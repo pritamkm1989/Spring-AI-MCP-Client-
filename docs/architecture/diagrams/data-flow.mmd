@@ -1,0 +1,50 @@
+%% Sources:
+%% - src/main/java/com/pkm/agent/config/AgentConfig.java
+%% - src/main/java/com/pkm/agent/config/McpConfig.java
+%% - src/main/java/com/pkm/agent/controller/AgentController.java
+%% - src/main/java/com/pkm/agent/controller/DocumentationController.java
+%% - src/main/java/com/pkm/agent/controller/RagController.java
+%% - src/main/java/com/pkm/agent/tools/AgentTools.java
+%% - src/main/java/com/pkm/agent/tools/DocumentationTools.java
+%% - src/main/resources/application.yml
+flowchart LR
+    client["API Client"]
+    docOperator["Documentation Operator"]
+
+    subgraph app["Spring AI Agent Application"]
+        agentApi["AgentController"]
+        documentationApi["DocumentationController"]
+        ragApi["RagController"]
+        orchestrator["ChatClient + advisors"]
+        localTools["AgentTools"]
+        documentationTools["DocumentationTools"]
+        mcpCallbacks["MCP ToolCallbackProvider"]
+        vectorStore["VectorStore"]
+    end
+
+    ollama["Ollama"]
+    localMcp["Local MCP server"]
+    parallelMcp["Parallel Search MCP server"]
+    pgvector[("PostgreSQL + pgvector")]
+    repo[("Repository .java files")]
+
+    client -->|"POST /api/agent/chat"| agentApi
+    client -->|"GET /api/agent/tools"| agentApi
+    client -->|"POST /api/rag/ingest"| ragApi
+    docOperator -->|"POST /api/agent/document"| documentationApi
+
+    agentApi -->|"Prompt + conversationId"| orchestrator
+    agentApi -->|"List tool definitions"| mcpCallbacks
+    documentationApi -->|"Fixed documentation instruction"| orchestrator
+    ragApi -->|"Document(text)"| vectorStore
+
+    orchestrator -->|"Chat prompts / responses"| ollama
+    orchestrator -->|"Invoke local tools"| localTools
+    orchestrator -->|"Invoke documentation tools"| documentationTools
+    orchestrator -->|"Invoke remote tools"| mcpCallbacks
+
+    documentationTools -->|"Scan/read/write .java"| repo
+    mcpCallbacks -->|"SSE + Basic auth from config"| localMcp
+    mcpCallbacks -->|"Streamable HTTP + API key from config"| parallelMcp
+    vectorStore -->|"Embeddings request"| ollama
+    vectorStore -->|"Persist vectors"| pgvector

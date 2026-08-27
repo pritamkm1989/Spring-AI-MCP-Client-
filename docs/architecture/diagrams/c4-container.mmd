@@ -1,0 +1,30 @@
+%% Sources:
+%% - build.gradle
+%% - src/main/java/com/pkm/agent/config/AgentConfig.java
+%% - src/main/java/com/pkm/agent/config/McpConfig.java
+%% - src/main/java/com/pkm/agent/controller/AgentController.java
+%% - src/main/java/com/pkm/agent/controller/DocumentationController.java
+%% - src/main/java/com/pkm/agent/controller/RagController.java
+%% - src/main/resources/application.yml
+flowchart LR
+    apiUser["API Client"]
+    docOperator["Documentation Operator"]
+
+    subgraph system["Spring AI Agent Application"]
+        app["Spring Boot application<br/>Port 8081<br/>Java + Spring AI<br/>REST API, ChatClient orchestration, RAG ingest"]
+    end
+
+    ollama["Ollama service<br/>Chat model + embedding model"]
+    localMcp["Local MCP server<br/>SSE endpoint"]
+    parallelMcp["Parallel Search MCP server<br/>HTTP endpoint"]
+    pgvector[("PostgreSQL + pgvector")]
+    repo["Repository filesystem<br/>Java source files"]
+
+    apiUser -->|"HTTP JSON"| app
+    docOperator -->|"HTTP JSON"| app
+    app -->|"Chat completions"| ollama
+    app -->|"Embeddings for vector storage"| ollama
+    app -->|"SSE + Basic auth from config"| localMcp
+    app -->|"Streamable HTTP + API key from config"| parallelMcp
+    app -->|"JDBC / vector storage"| pgvector
+    app -->|"File scan/read/write for documentation workflow"| repo

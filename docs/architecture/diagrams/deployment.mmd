@@ -1,0 +1,28 @@
+%% Sources:
+%% - build.gradle
+%% - src/main/resources/application.yml
+%% - src/main/java/com/pkm/agent/config/McpConfig.java
+%% - src/main/java/com/pkm/agent/tools/DocumentationTools.java
+flowchart TB
+    client["HTTP client"]
+
+    subgraph appHost["Application host"]
+        app["Spring Boot process<br/>Port 8081<br/>Spring AI application"]
+        repo["Repository filesystem<br/>agent.doc.root-path"]
+    end
+
+    subgraph localServices["Local services"]
+        ollama["Ollama<br/>spring.ai.ollama.base-url<br/>chat model + embedding model"]
+        localMcp["Local MCP server<br/>agent.mcp.local.url + sse-endpoint<br/>Basic auth from config"]
+        pgvector[("PostgreSQL + pgvector<br/>spring.datasource.url")]
+    end
+
+    parallelMcp["Parallel Search MCP<br/>agent.mcp.parallel-search.url + endpoint<br/>API key from config"]
+
+    client -->|"HTTP /api/*"| app
+    app -->|"Chat completions"| ollama
+    app -->|"Embeddings"| ollama
+    app -->|"SSE client connection"| localMcp
+    app -->|"Streamable HTTP client connection"| parallelMcp
+    app -->|"JDBC"| pgvector
+    app -->|"Local file access for documentation workflow"| repo
