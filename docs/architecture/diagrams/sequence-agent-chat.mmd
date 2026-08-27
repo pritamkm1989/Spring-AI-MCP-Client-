@@ -15,8 +15,8 @@ sequenceDiagram
     participant Ollama
 
     Client->>AgentController: POST /api/agent/chat {message, conversationId?}
-    AgentController->>AgentController: Resolve conversationId\nblank -> "default"
-    AgentController->>ChatClient: prompt().user(message)\nadvisors(conversationId)
+    AgentController->>AgentController: Resolve conversationId<br/>blank -> "default"
+    AgentController->>ChatClient: prompt().user(message)<br/>advisors(conversationId)
     ChatClient->>ChatMemory: Load/update conversation window
     Note over ChatClient,Ollama: ChatModelLoggingAspect logs prompt, response, and token usage around model calls
     ChatClient->>Ollama: Send prompt with system prompt and advisors
