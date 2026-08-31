@@ -11,7 +11,7 @@ tools** — each over its own protocol and authentication scheme — while using
 1. [The big picture](#1-the-big-picture)
 2. [Spring AI: the glue](#2-spring-ai-the-glue)
 3. [Ollama: the local model](#3-ollama-the-local-model)
-4. [Tool calling, explained](#4-tool-calling-explained)
+4. [Tool calling, explained with the weather example](#4-tool-calling-explained-with-the-weather-example)
 5. [Local tools (`@Tool`)](#5-local-tools-tool)
 6. [MCP tools: protocols & authentication](#6-mcp-tools-protocols--authentication)
 7. [How a request flows end to end](#7-how-a-request-flows-end-to-end)
@@ -122,37 +122,161 @@ The chat model must support **tool calling** for the agent loop to work —
 
 ---
 
-## 4. Tool calling, explained
+## 4. Tool calling, explained with the weather example
 
 Tool calling is how an LLM goes from "predicting text" to "taking action."
 Instead of guessing a fact it can't know, the model emits a structured request
 to call a named tool. The framework runs the tool and feeds the result back,
 and the loop repeats until the model produces a final answer.
 
+### A concrete walkthrough: "What's the weather in Berlin?"
+
+This project ships a `WeatherTool` that exposes two `@Tool` methods —
+`getCoordinatesForCity` and `getCurrentWeather` — backed by the
+[Open-Meteo](https://open-meteo.com/) free APIs. Here is what happens step by
+step when a user sends that question:
+
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant C as ChatClient
+    participant CC as ChatClient
     participant M as Ollama (qwen2.5)
-    participant T as Tool (local or MCP)
+    participant W as WeatherTool
 
-    U->>C: "What's 18 * 7, and search the web for X?"
-    C->>M: prompt + tool definitions
-    M-->>C: tool_call: calculate(18, "*", 7)
-    C->>T: invoke calculate
-    T-->>C: 126
-    C->>M: tool result = 126
-    M-->>C: tool_call: web_search("X")
-    C->>T: invoke MCP web_search
-    T-->>C: search results
-    C->>M: tool result
-    M-->>C: final natural-language answer
-    C-->>U: answer
+    U->>CC: "What's the weather in Berlin?"
+    CC->>M: prompt + tool definitions
+
+    Note over M: Model decides it needs<br/>coordinates first
+
+    M-->>CC: tool_call: getCoordinatesForCity("Berlin")
+    CC->>W: invoke getCoordinatesForCity
+    W->>W: GET geocoding-api.open-meteo.com/v1/search?name=Berlin
+    W-->>CC: "52.52,13.41"
+    CC->>M: tool result = "52.52,13.41"
+
+    Note over M: Model now has lat/lng,<br/>calls the weather endpoint
+
+    M-->>CC: tool_call: getCurrentWeather("52.52", "13.41")
+    CC->>W: invoke getCurrentWeather
+    W->>W: GET api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&...
+    W-->>CC: "Temperature: 18.2°C, Humidity: 55%, Wind: 12.3 km/h, ..."
+    CC->>M: tool result
+
+    Note over M: All facts collected,<br/>compose final answer
+
+    M-->>CC: final natural-language answer
+    CC-->>U: "The current weather in Berlin is 18.2°C, ..."
 ```
 
-The key insight: **the model never runs code**. It only *asks* for a tool by
-name. Spring AI validates the call, executes it, and returns the result. This
-is true for both local and MCP tools.
+Notice the **two-round** loop. The model called a tool, got coordinates back,
+then called a *second* tool with those coordinates. It never ran code itself —
+it only *asked* for tools by name.
+
+### What the model sees
+
+Before any call happens, Spring AI sends the model a list of available tools
+with their names, descriptions, and parameter schemas. For the weather tools,
+the model sees something like:
+
+```
+Tool: getCoordinatesForCity
+  description: "Get latitude and longitude coordinates for a city name,
+                needed before calling getCurrentWeather"
+  parameters:
+    cityName: string — "Name of the city, e.g. 'Berlin'"
+
+Tool: getCurrentWeather
+  description: "Get the current weather for a city given its latitude
+                and longitude"
+  parameters:
+    latitude: string  — "Latitude, e.g. '52.52'"
+    longitude: string — "Longitude, e.g. '13.41'"
+```
+
+The `@Tool` and `@ToolParam` descriptions are written so the model
+understands the *ordering* — `getCoordinatesForCity` explicitly says it is
+"needed before calling `getCurrentWeather`", which is enough for the model
+to chain them correctly.
+
+### The tool implementation
+
+The actual Java is straightforward — a Spring bean with `@Tool`-annotated
+methods:
+
+```java
+@Component
+public class WeatherTool implements AgenticTool {
+
+    private final RestClient restClient;
+
+    public WeatherTool(RestClient.Builder builder) {
+        this.restClient = builder.baseUrl("https://api.open-meteo.com").build();
+    }
+
+    @Tool(description = "Get the current weather for a city given its latitude and longitude")
+    public String getCurrentWeather(
+            @ToolParam(description = "Latitude of the location, e.g. '52.52'") String latitude,
+            @ToolParam(description = "Longitude of the location, e.g. '13.41'") String longitude) {
+        Map<String, Object> response = restClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/forecast")
+                        .queryParam("latitude", latitude)
+                        .queryParam("longitude", longitude)
+                        .queryParam("current", "temperature_2m,wind_speed_10m,"
+                                + "relative_humidity_2m,weather_code")
+                        .build())
+                .retrieve()
+                .body(Map.class);
+
+        Map<String, Object> current = (Map<String, Object>) response.get("current");
+        return String.format(
+                "Temperature: %s°C, Humidity: %s%%, Wind: %s km/h, Weather code: %s",
+                current.get("temperature_2m"),
+                current.get("relative_humidity_2m"),
+                current.get("wind_speed_10m"),
+                current.get("weather_code"));
+    }
+
+    @Tool(description = "Get latitude and longitude coordinates for a city name, "
+            + "needed before calling getCurrentWeather")
+    public String getCoordinatesForCity(
+            @ToolParam(description = "Name of the city, e.g. 'Berlin'") String cityName) {
+        Map<String, Object> response = restClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .scheme("https")
+                        .host("geocoding-api.open-meteo.com")
+                        .path("/v1/search")
+                        .queryParam("name", cityName)
+                        .queryParam("count", 1)
+                        .build())
+                .retrieve()
+                .body(Map.class);
+
+        List<Map<String, Object>> results =
+                (List<Map<String, Object>>) response.get("results");
+        if (results == null || results.isEmpty()) {
+            return "City not found: " + cityName;
+        }
+        Map<String, Object> first = results.get(0);
+        return first.get("latitude") + "," + first.get("longitude");
+    }
+}
+```
+
+No transport layer, no serialization config, no auth headers — just a
+`RestClient` call and a `String` return. Spring AI handles the rest: schema
+generation, argument validation, result marshalling, and the re-prompt loop.
+
+### The key insight
+
+**The model never runs code.** It only *asks* for a tool by name with
+arguments. Spring AI validates the call, executes the method, and feeds the
+result back into the conversation. The model then decides whether it has
+enough information to answer or needs another tool call — as it did here,
+needing two rounds to go from city name → coordinates → weather data.
+
+This is true for both local `@Tool` methods and remote MCP tools; the model
+treats them identically.
 
 ---
 
