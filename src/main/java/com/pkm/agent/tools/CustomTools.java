@@ -3,6 +3,7 @@ package com.pkm.agent.tools;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+import com.pkm.agent.tools.base.AgenticTool;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Component;
 
@@ -14,7 +15,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Component
-public class AgentTools {
+public class CustomTools implements AgenticTool {
 
     @Tool(description = "Get the current server date and time in ISO-8601 format")
     public String getCurrentDateTime() {

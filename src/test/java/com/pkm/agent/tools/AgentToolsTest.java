@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 
 class AgentToolsTest {
 
-    private final AgentTools tools = new AgentTools();
+    private final CustomTools tools = new CustomTools();
 
     @Test
     void calculate_supportsAllArithmeticOperators() {

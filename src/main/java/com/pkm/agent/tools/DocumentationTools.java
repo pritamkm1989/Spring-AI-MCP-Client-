@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import com.pkm.agent.tools.base.AgenticTool;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -23,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Component
-public class DocumentationTools {
+public class DocumentationTools implements AgenticTool {
 
     /** Matches a public/protected type, method or field declaration that should carry Javadoc. */
     private static final Pattern DOCUMENTABLE = Pattern.compile(
